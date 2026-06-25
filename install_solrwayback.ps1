@@ -67,6 +67,33 @@ function Ensure-Directory {
 
 try {
     Assert-Admin
+
+    Write-Log "Checking for Java 11 installation"
+
+    # Install Java11 if not found
+    $JavaHome = Get-EnvVar `
+        -Name "JAVA_HOME" `
+        -Default $Default_JavaHome
+
+    if (!(Test-Path $JavaHome)) {
+        $msi = Join-Path $env:TEMP "temurin11.msi"
+        $javaInstallerUrl = "https://aka.ms/download-jdk/microsoft-jdk-11-windows-x64.msi"
+
+        Write-Log "Java 11 not detected; downloading Java 11 MSI from $javaInstallerUrl"
+        Invoke-WebRequest -Uri $javaInstallerUrl -OutFile $msi
+
+        Write-Log "Installing Java 11 to $Default_JavaHome"
+        Start-Process -FilePath 'msiexec.exe' -Wait -ArgumentList "/i", "`"$msi`"", "INSTALLDIR=`"$Default_JavaHome`"", "/qn"
+
+        $JavaHome = Get-EnvVar `
+            -Name "JAVA_HOME" `
+            -Default $Default_JavaHome
+
+        if (!(Test-Path $JavaHome)) {
+            throw "JAVA_HOME path does not exist after running installer: $JavaHome"
+        }
+    }
+
     Write-Log "Starting SolrWayback installation"
 
     $SolrwaybackVersion = Get-EnvVar `
@@ -81,25 +108,6 @@ try {
     $UserHome = Get-EnvVar `
         -Name "SOLRWAYBACK_USER_HOME" `
         -Default $Default_UserHome
-    $JavaHome = Get-EnvVar `
-        -Name "JAVA_HOME" `
-        -Default $Default_JavaHome
-
-    # Install Java11 if not found
-    if (!(Test-Path $JavaHome)) {
-        $javaInstaller = Join-Path $PSScriptRoot 'install_java11.ps1'
-        if (!(Test-Path $javaInstaller)) {
-            throw "Java installer helper not found: $javaInstaller"
-        }
-
-        Write-Log "Java home not found at $JavaHome. Executing $javaInstaller"
-        & $javaInstaller
-
-        $JavaHome = Get-EnvVar -Name "JAVA_HOME" -Default $Default_JavaHome
-        if (!(Test-Path $JavaHome)) {
-            throw "JAVA_HOME path does not exist after running installer: $JavaHome"
-        }
-    }
 
     $VersionToken = if ($SolrwaybackVersion.StartsWith("v")) { $SolrwaybackVersion.Substring(1) } else { $SolrwaybackVersion }
     $VersionedPackageName = "solrwayback_package_$VersionToken"
