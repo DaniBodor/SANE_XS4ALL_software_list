@@ -1,4 +1,4 @@
-# SANE XS4ALL Software List
+# SANE XS4ALL Software Lists
 
 This repository contains files that define which software packages are available in KB's XS4ALL SANE environment.
 
@@ -6,7 +6,7 @@ Use this repo to track and update the set of accessible software and packages fo
 
 ## SolrWayback
 
-The main tool for working with WARC files is [SolrWayback](https://github.com/netarchivesuite/solrwayback). This tool is installed in the environment using the included [powershell script](install_solrwayback.ps1)
+The main tool for working with WARC files is [SolrWayback](https://github.com/netarchivesuite/solrwayback). This tool is installed in the environment using the included [powershell script](install_solrwayback.ps1). This step will also install Java in the process, but does not currently include the chrome/chromium installation for page previews.
 
 ## Python packages
 
