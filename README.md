@@ -4,6 +4,10 @@ This repository contains files that define which software packages are available
 
 Use this repo to track and update the set of accessible software and packages for the XS4ALL configuration.
 
+## SolrWayback
+
+The main tool for working with WARC files is [SolrWayback](https://github.com/netarchivesuite/solrwayback). This tool is installed in the environment using the included [powershell script](install_solrwayback.ps1)
+
 ## Python packages
 
 Our list of installed [python packages](requirements.txt) is based on the [default list of python packages in SANE](https://gitlab.com/rsc-surf-nl/co-create-plugins/sane-tinker-python-packages/-/raw/main/requirements.txt). However, we have disabled all packages used exclusively for Deep Learning, as we currently do not allow this application with our dataset.
