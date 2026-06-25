@@ -86,12 +86,11 @@ try {
         Write-Log "Installing Java 11 to $Default_JavaHome"
         Start-Process -FilePath 'msiexec.exe' -Wait -ArgumentList "/i", "`"$msi`"", "INSTALLDIR=`"$Default_JavaHome`"", "/qn"
 
-        $JavaHome = Get-EnvVar `
-            -Name "JAVA_HOME" `
-            -Default $Default_JavaHome
-
-        if (!(Test-Path $JavaHome)) {
-            throw "JAVA_HOME path does not exist after running installer: $JavaHome"
+        if (Test-Path $Default_JavaHome) {
+            $JavaHome = $Default_JavaHome
+            Write-Log "Java 11 installed to $JavaHome"
+        } else {
+            throw "Java 11 path does not exist after installation: $Default_JavaHome"
         }
     } else {
         Write-Log "Java 11 found at $JavaHome"
