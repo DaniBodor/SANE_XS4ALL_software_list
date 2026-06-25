@@ -1,0 +1,7 @@
+{
+    "[powershell]": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "tooark.ark-format-powershell"
+    },
+    "arkFormatPowerShell.indentSize": 4
+}
