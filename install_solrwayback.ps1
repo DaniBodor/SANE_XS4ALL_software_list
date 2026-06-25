@@ -13,7 +13,6 @@ $Default_GithubBaseUrl = "https://github.com/netarchivesuite/solrwayback/release
 $Default_InstallDir = "C:\Program Files\solrwayback"
 $Default_UserHome = Join-Path $Default_InstallDir "user\home"
 $Default_JavaHome = "C:\Program Files\Java\jdk-11"
-$PropertiesPath = Join-Path $Default_InstallDir "src\bundle\properties"
 
 $ErrorActionPreference = "Stop"
 $LogFile = "C:\logs\install-solrwayback.log"
@@ -103,7 +102,8 @@ try {
     }
 
     $VersionToken = if ($SolrwaybackVersion.StartsWith("v")) { $SolrwaybackVersion.Substring(1) } else { $SolrwaybackVersion }
-    $AssetName = "solrwayback_package_$VersionToken.zip"
+    $VersionedPackageName = "solrwayback_package_$VersionToken"
+    $AssetName = "$VersionedPackageName.zip"
     $DownloadUrl = "$GithubBaseUrl/$VersionToken/$AssetName"
 
     $TempDir = "C:\Temp\solrwayback"
@@ -140,6 +140,9 @@ try {
     "solrwayback.properties",
     "solrwaybackweb.properties"
     )
+
+    $PackageLocation = Join-Path $InstallDir $VersionedPackageName
+    $PropertiesPath = Join-Path $PackageLocation "properties"
 
     foreach ($fileName in $FilesToCopy) {
         $sourceFile = Join-Path $PropertiesPath $fileName
