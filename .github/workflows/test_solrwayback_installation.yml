@@ -3,9 +3,11 @@ name: Test SolrWayback Installation
 on:
   push:
     branches: [ main ]
+    paths: [ 'install_solrwayback.ps1' ]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     branches: [ main ]
+    paths: [ 'install_solrwayback.ps1' ]
 
 jobs:
   install-solrwayback:

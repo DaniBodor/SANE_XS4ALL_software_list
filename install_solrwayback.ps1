@@ -1,11 +1,8 @@
-# This script is based on https://gitlab.com/rsc-surf-nl/plugins/ollama-windows/-/blob/main/ollama-windows.ps1
-# Despite not being licensed at the time, permission was given by the author of the script to use it in this project.
-
 # The script downloads the SolrWayback bundle, extracts it, and copies the
 # required properties files into the configured user home folder.
+# Also installs Java 11 if not already installed.
 
-# Run as Administrator
-#
+# Must be run as Administrator
 
 # Expected env vars for installation:
 $Default_Version = "5.4.2"
@@ -92,6 +89,8 @@ try {
         if (!(Test-Path $JavaHome)) {
             throw "JAVA_HOME path does not exist after running installer: $JavaHome"
         }
+    } else {
+        Write-Log "Java 11 found at $JavaHome"
     }
 
     Write-Log "Starting SolrWayback installation"
