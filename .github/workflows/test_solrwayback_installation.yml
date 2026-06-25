@@ -20,6 +20,8 @@ jobs:
 
       - name: Run install_solrwayback.ps1
         shell: pwsh
+        env:
+          JAVA_HOME: 'C:\dummy_location' # Set a dummy JAVA_HOME to ensure the script tests Java 11 installation step
         run: |
           Write-Host "Starting SolrWayback installation script"
           $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)

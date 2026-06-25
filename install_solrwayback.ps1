@@ -41,10 +41,14 @@ function Get-EnvVar {
         [string]$Default = $null
     )
 
-    $value = [Environment]::GetEnvironmentVariable($Name, "Machine")
+    $value = [Environment]::GetEnvironmentVariable($Name, "Process")
 
     if ([string]::IsNullOrWhiteSpace($value)) {
-        $value = [Environment]::GetEnvironmentVariable($Name, "Process")
+        $value = [Environment]::GetEnvironmentVariable($Name, "User")
+    }
+
+    if ([string]::IsNullOrWhiteSpace($value)) {
+        $value = [Environment]::GetEnvironmentVariable($Name, "Machine")
     }
 
     if ([string]::IsNullOrWhiteSpace($value)) {
