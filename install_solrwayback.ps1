@@ -6,15 +6,14 @@
 
 # Run as Administrator
 #
+
 # Expected env vars for installation:
-#   SOLRWAYBACK_VERSION=5.4.2
-#   SOLRWAYBACK_GITHUB_BASE_URL=https://github.com/netarchivesuite/solrwayback/releases/download
-#   SOLRWAYBACK_INSTALL_DIR=C:\Program Files\solrwayback
-#   SOLRWAYBACK_USER_HOME=C:\Program Files\solrwayback\user\home
-#
-# Required Windows-only env var:
-#   JAVA_HOME=C:\Program Files\Java\jdk-11
-#
+$Default_Version = "5.4.2"
+$Default_GithubBaseUrl = "https://github.com/netarchivesuite/solrwayback/releases/download"
+$Default_InstallDir = "C:\Program Files\solrwayback"
+$Default_UserHome = Join-Path $Default_InstallDir "user\home"
+$Default_JavaHome = "C:\Program Files\Java\jdk-11"
+$PropertiesPath = Join-Path $Default_InstallDir "src\bundle\properties"
 
 $ErrorActionPreference = "Stop"
 $LogFile = "C:\logs\install-solrwayback.log"
@@ -59,18 +58,6 @@ function Get-EnvVar {
     return $value
 }
 
-function Get-EnvVarOrFail {
-    param([Parameter(Mandatory = $true)][string]$Name)
-
-    $value = Get-EnvVar -Name $Name
-
-    if ([string]::IsNullOrWhiteSpace($value)) {
-        throw "Required environment variable '$Name' is not set or empty."
-    }
-
-    return $value
-}
-
 function Ensure-Directory {
     param([Parameter(Mandatory = $true)][string]$Path)
 
@@ -79,38 +66,40 @@ function Ensure-Directory {
     }
 }
 
-function Resolve-ExtractedPropertiesPath {
-    param([Parameter(Mandatory = $true)][string]$BaseDir)
-    $bundle = Join-Path $BaseDir "src\bundle\properties"
-    if (Test-Path $bundle) {
-        return $bundle
-    }
-
-    throw "Required properties folder not found at exact path: $bundle"
-}
-
 try {
     Assert-Admin
     Write-Log "Starting SolrWayback installation"
 
     $SolrwaybackVersion = Get-EnvVar `
         -Name "SOLRWAYBACK_VERSION"`
-        -Default "5.4.2"
-
+        -Default $Default_Version
     $GithubBaseUrl = Get-EnvVar `
-    -Name "SOLRWAYBACK_GITHUB_BASE_URL" `
-    -Default "https://github.com/netarchivesuite/solrwayback/releases/download"
+        -Name "SOLRWAYBACK_GITHUB_BASE_URL" `
+        -Default $Default_GithubBaseUrl
     $InstallDir = Get-EnvVar`
         -Name "SOLRWAYBACK_INSTALL_DIR" `
-        -Default "C:\Program Files\solrwayback"
+        -Default $Default_InstallDir
     $UserHome = Get-EnvVar `
         -Name "SOLRWAYBACK_USER_HOME" `
-        -Default (Join-Path $InstallDir "user\home")
-    $JavaHome = Get-EnvVarOrFail `
-        -Name "JAVA_HOME"
+        -Default $Default_UserHome
+    $JavaHome = Get-EnvVar `
+        -Name "JAVA_HOME" `
+        -Default $Default_JavaHome
 
+    # Install Java11 if not found
     if (!(Test-Path $JavaHome)) {
-        throw "JAVA_HOME path does not exist: $JavaHome"
+        $javaInstaller = Join-Path $PSScriptRoot 'install_java11.ps1'
+        if (!(Test-Path $javaInstaller)) {
+            throw "Java installer helper not found: $javaInstaller"
+        }
+
+        Write-Log "Java home not found at $JavaHome. Executing $javaInstaller"
+        & $javaInstaller
+
+        $JavaHome = Get-EnvVar -Name "JAVA_HOME" -Default $Default_JavaHome
+        if (!(Test-Path $JavaHome)) {
+            throw "JAVA_HOME path does not exist after running installer: $JavaHome"
+        }
     }
 
     $VersionToken = if ($SolrwaybackVersion.StartsWith("v")) { $SolrwaybackVersion.Substring(1) } else { $SolrwaybackVersion }
@@ -124,7 +113,7 @@ try {
     Write-Log "Download URL: $DownloadUrl"
     Write-Log "Install dir: $InstallDir"
     Write-Log "User home: $UserHome"
-    Write-Log "JAVA_HOME: $JavaHome"
+    Write-Log "Java home: $JavaHome"
 
     Ensure-Directory $TempDir
     Ensure-Directory $InstallDir
@@ -147,11 +136,9 @@ try {
         -DestinationPath $InstallDir `
         -Force
 
-    $PropertiesPath = Resolve-ExtractedPropertiesPath -BaseDir $InstallDir
-
     $FilesToCopy = @(
-        "solrwayback.properties",
-        "solrwaybackweb.properties"
+    "solrwayback.properties",
+    "solrwaybackweb.properties"
     )
 
     foreach ($fileName in $FilesToCopy) {
@@ -166,7 +153,7 @@ try {
 
     Write-Log "SolrWayback installation complete"
     Write-Log "If screenshot previews are required, verify chrome.command and screenshot.temp.imagedir in $UserHome\solrwayback.properties"
-    Write-Log "Users may need to sign out/in before JAVA_HOME is visible in new sessions."
+    Write-Log "Users may need to sign out/in before proceeding."
 }
 catch {
     Write-Log "ERROR: $($_.Exception.Message)"
