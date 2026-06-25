@@ -1,21 +1,23 @@
-# This script is copied from https://gitlab.com/rsc-surf-nl/plugins/ollama-windows/-/blob/main/ollama-windows.ps1
+# This script is based on https://gitlab.com/rsc-surf-nl/plugins/ollama-windows/-/blob/main/ollama-windows.ps1
 # Despite not being licensed at the time, permission was given by the author of the script to use it in this project.
 
-# ollama-windows.ps1
+# The script downloads the SolrWayback bundle, extracts it, and copies the
+# required properties files into the configured user home folder.
+
 # Run as Administrator
 #
-# Expected env vars, set by Ansible at machine level:
-#   OLLAMA_VERSION=0.12.10
-#   OLLAMA_MODELS_TO_PULL=qwen2.5-coder:7b,llama3.2:3b
+# Expected env vars for installation:
+#   SOLRWAYBACK_VERSION=5.4.2
+#   SOLRWAYBACK_GITHUB_BASE_URL=https://github.com/netarchivesuite/solrwayback/releases/download
+#   SOLRWAYBACK_INSTALL_DIR=C:\Program Files\solrwayback
+#   SOLRWAYBACK_USER_HOME=C:\Program Files\solrwayback\user\home
 #
-# Optional:
-#   OLLAMA_GITHUB_BASE_URL=https://github.com/ollama/ollama/releases/download
-#   OLLAMA_INSTALL_DIR=C:\Program Files\Ollama
-#   OLLAMA_MODEL_STORE=C:\ProgramData\Ollama\models
+# Required Windows-only env var:
+#   JAVA_HOME=C:\Program Files\Java\jdk-11
+#
 
 $ErrorActionPreference = "Stop"
-
-$LogFile = "C:\logs\install-ollama.log"
+$LogFile = "C:\logs\install-solrwayback.log"
 
 function Write-Log {
     param([string]$Message)
@@ -34,7 +36,7 @@ function Assert-Admin {
     $principal = New-Object Security.Principal.WindowsPrincipal($identity)
 
     if (!$principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-        throw "Run this script as Administrator."
+        throw "Please run this script as an Administrator."
     }
 }
 
@@ -69,85 +71,66 @@ function Get-EnvVarOrFail {
     return $value
 }
 
-function ConvertTo-ModelList {
-    param([Parameter(Mandatory = $true)][string]$RawValue)
+function Ensure-Directory {
+    param([Parameter(Mandatory = $true)][string]$Path)
 
-    return $RawValue `
-        -split "[,;`n`r]+" `
-        | ForEach-Object { $_.Trim() } `
-        | Where-Object { $_ } `
-        | Select-Object -Unique
+    if (!(Test-Path $Path)) {
+        New-Item -ItemType Directory -Path $Path -Force | Out-Null
+    }
 }
 
-function New-PublicDesktopShortcut {
-    param([Parameter(Mandatory = $true)][string]$TargetPath)
+function Resolve-ExtractedPropertiesPath {
+    param([Parameter(Mandatory = $true)][string]$BaseDir)
+    $bundle = Join-Path $BaseDir "src\bundle\properties"
+    if (Test-Path $bundle) {
+        return $bundle
+    }
 
-    $ShortcutPath = "C:\Users\Public\Desktop\Ollama.lnk"
-
-    $Shell = New-Object -ComObject WScript.Shell
-    $Shortcut = $Shell.CreateShortcut($ShortcutPath)
-    $Shortcut.TargetPath = $TargetPath
-    $Shortcut.WorkingDirectory = Split-Path $TargetPath -Parent
-    $Shortcut.Save()
-
-    Write-Log "Public desktop shortcut created: $ShortcutPath"
+    throw "Required properties folder not found at exact path: $bundle"
 }
 
 try {
     Assert-Admin
+    Write-Log "Starting SolrWayback installation"
 
-    Write-Log "Starting Ollama installation"
-
-    $OllamaVersion = Get-EnvVar -Name "OLLAMA_VERSION" -Default "latest"
-    $ModelsToPullRaw = Get-EnvVarOrFail -Name "OLLAMA_MODELS_TO_PULL"
+    $SolrwaybackVersion = Get-EnvVar `
+        -Name "SOLRWAYBACK_VERSION"`
+        -Default "5.4.2"
 
     $GithubBaseUrl = Get-EnvVar `
-        -Name "OLLAMA_GITHUB_BASE_URL" `
-        -Default "https://github.com/ollama/ollama/releases/download"
+    -Name "SOLRWAYBACK_GITHUB_BASE_URL" `
+    -Default "https://github.com/netarchivesuite/solrwayback/releases/download"
+    $InstallDir = Get-EnvVar`
+        -Name "SOLRWAYBACK_INSTALL_DIR" `
+        -Default "C:\Program Files\solrwayback"
+    $UserHome = Get-EnvVar `
+        -Name "SOLRWAYBACK_USER_HOME" `
+        -Default (Join-Path $InstallDir "user\home")
+    $JavaHome = Get-EnvVarOrFail `
+        -Name "JAVA_HOME"
 
-    $InstallDir = Get-EnvVar `
-        -Name "OLLAMA_INSTALL_DIR" `
-        -Default "C:\Program Files\Ollama"
-
-    $ModelStore = Get-EnvVar `
-        -Name "OLLAMA_MODEL_STORE" `
-        -Default "C:\ProgramData\Ollama\models"
-
-    $TempDir = "C:\Temp\Ollama"
-
-    if ($OllamaVersion -eq "latest") {
-        $VersionTag = "latest"
-        $DownloadUrl = "https://github.com/ollama/ollama/releases/latest/download/ollama-windows-amd64.zip"
-    }
-    else {
-        $VersionTag = if ($OllamaVersion.StartsWith("v")) { $OllamaVersion } else { "v$OllamaVersion" }
-        $DownloadUrl = "$GithubBaseUrl/$VersionTag/ollama-windows-amd64.zip"
+    if (!(Test-Path $JavaHome)) {
+        throw "JAVA_HOME path does not exist: $JavaHome"
     }
 
-    $ZipPath = Join-Path $TempDir "ollama-windows-amd64-$VersionTag.zip"
+    $VersionToken = if ($SolrwaybackVersion.StartsWith("v")) { $SolrwaybackVersion.Substring(1) } else { $SolrwaybackVersion }
+    $AssetName = "solrwayback_package_$VersionToken.zip"
+    $DownloadUrl = "$GithubBaseUrl/$VersionToken/$AssetName"
 
-    $ModelsToPull = ConvertTo-ModelList -RawValue $ModelsToPullRaw
+    $TempDir = "C:\Temp\solrwayback"
+    $ZipPath = Join-Path $TempDir $AssetName
 
-    if (!$ModelsToPull -or $ModelsToPull.Count -eq 0) {
-        throw "OLLAMA_MODELS_TO_PULL did not contain any valid model names."
-    }
-
-    Write-Log "Ollama version: $VersionTag"
+    Write-Log "Version: $VersionToken"
     Write-Log "Download URL: $DownloadUrl"
     Write-Log "Install dir: $InstallDir"
-    Write-Log "Model store: $ModelStore"
-    Write-Log "Models requested: $($ModelsToPull -join ', ')"
+    Write-Log "User home: $UserHome"
+    Write-Log "JAVA_HOME: $JavaHome"
 
-    New-Item -ItemType Directory -Path $TempDir -Force | Out-Null
-    New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
-    New-Item -ItemType Directory -Path $ModelStore -Force | Out-Null
+    Ensure-Directory $TempDir
+    Ensure-Directory $InstallDir
+    Ensure-Directory $UserHome
 
-    Write-Log "Setting system-wide OLLAMA_MODELS=$ModelStore"
-    [Environment]::SetEnvironmentVariable("OLLAMA_MODELS", $ModelStore, "Machine")
-    $env:OLLAMA_MODELS = $ModelStore
-
-    Write-Log "Downloading Ollama standalone ZIP"
-
+    Write-Log "Downloading SolrWayback bundle"
     curl.exe `
         -L `
         --fail `
@@ -158,55 +141,32 @@ try {
         throw "Download failed with exit code $LASTEXITCODE"
     }
 
-    Write-Log "Extracting Ollama to $InstallDir"
+    Write-Log "Extracting SolrWayback bundle to $InstallDir"
     Expand-Archive `
         -Path $ZipPath `
         -DestinationPath $InstallDir `
         -Force
 
-    $OllamaExe = Join-Path $InstallDir "ollama.exe"
+    $PropertiesPath = Resolve-ExtractedPropertiesPath -BaseDir $InstallDir
 
-    if (!(Test-Path $OllamaExe)) {
-        throw "ollama.exe not found after extraction at: $OllamaExe"
-    }
+    $FilesToCopy = @(
+        "solrwayback.properties",
+        "solrwaybackweb.properties"
+    )
 
-    Write-Log "Found Ollama executable: $OllamaExe"
-
-    $MachinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
-    if ($MachinePath -notlike "*$InstallDir*") {
-        Write-Log "Adding Ollama install dir to machine PATH"
-        [Environment]::SetEnvironmentVariable("Path", "$MachinePath;$InstallDir", "Machine")
-        $env:Path = "$env:Path;$InstallDir"
-    }
-
-    # New-PublicDesktopShortcut -TargetPath $OllamaExe
-
-    Write-Log "Starting Ollama server"
-    $ServerProcess = Start-Process `
-        -FilePath $OllamaExe `
-        -ArgumentList "serve" `
-        -WindowStyle Hidden `
-        -PassThru
-
-    Start-Sleep -Seconds 5
-
-    foreach ($Model in $ModelsToPull) {
-        Write-Log "Pulling Ollama model: $Model"
-
-        cmd.exe /c "`"$OllamaExe`" pull `"$Model`" >> `"$LogFile`" 2>&1"
-        $PullExitCode = $LASTEXITCODE
-
-        if ($PullExitCode -ne 0) {
-            throw "Failed to pull Ollama model '$Model'. Exit code: $PullExitCode"
+    foreach ($fileName in $FilesToCopy) {
+        $sourceFile = Join-Path $PropertiesPath $fileName
+        if (!(Test-Path $sourceFile)) {
+            throw "Required properties file not found: $sourceFile"
         }
 
-        Write-Log "Successfully pulled model: $Model"
+        Copy-Item -Path $sourceFile -Destination $UserHome -Force
+        Write-Log "Copied $fileName to $UserHome"
     }
 
-    Write-Log "Listing installed Ollama models"
-    & $OllamaExe list 2>&1 | Tee-Object -FilePath $LogFile -Append
-
-    Write-Log "Done. Users may need to sign out/in before PATH and OLLAMA_MODELS are visible in their session."
+    Write-Log "SolrWayback installation complete"
+    Write-Log "If screenshot previews are required, verify chrome.command and screenshot.temp.imagedir in $UserHome\solrwayback.properties"
+    Write-Log "Users may need to sign out/in before JAVA_HOME is visible in new sessions."
 }
 catch {
     Write-Log "ERROR: $($_.Exception.Message)"
